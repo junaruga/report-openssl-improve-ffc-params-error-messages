@@ -126,3 +126,51 @@ error:05000072:dsa routines:ffc_validate_LN:bad ffc parameters ((L, N)=(512, 160
 	from /home/jaruga/var/git/ruby/openssl/lib/openssl/pkey.rb:218:in 'OpenSSL::PKey::DSA.new'
 	from /home/jaruga/git/report-openssl-improve-ffc-params-error-messages/dsa.rb:4:in '<main>'
 ```
+
+## Couldn't confirm the changed error message in the DSA FIPS case
+
+I couldn't test the DSA FIPS case, to print the changed FFC parameters error message.
+Because the case is rejected by
+[this DSA sign disabled error](https://github.com/openssl/openssl/blob/e1eb88118a95445eb9c2d074c853776feaab4de7/providers/implementations/keymgmt/dsa_kmgmt.c#L627-L630).
+The debug log is below.
+
+```
+$ gdb --args ruby -I ./lib ~/git/report-openssl-improve-ffc-params-error-messages/dsa_fips.rb
+(gdb) set environment OPENSSL_CONF=/home/jaruga/.local/openssl-4.1.0-dev-fips-debug-50724a9686-wip/ssl/openssl_fips.cnf
+(gdb) b dsa_gen
+...
+(gdb) n
+627	    if (!OSSL_FIPS_IND_ON_UNAPPROVED(gctx, OSSL_FIPS_IND_SETTABLE0,
+(gdb) n
+630	        return 0;
+(gdb) f
+#0  dsa_gen (genctx=0x5ce390, osslcb=0x7fffcd779313 <ossl_callback_to_pkey_gencb>, cbarg=0x75eee0) at providers/implementations/keymgmt/dsa_kmgmt.c:630
+630	        return 0;
+(gdb) bt
+#0  dsa_gen (genctx=0x5ce390, osslcb=0x7fffcd779313 <ossl_callback_to_pkey_gencb>, cbarg=0x75eee0) at providers/implementations/keymgmt/dsa_kmgmt.c:630
+#1  0x00007fffcd76cd16 in evp_keymgmt_gen (keymgmt=0x5a8060, genctx=0x5ce390, cb=0x7fffcd779313 <ossl_callback_to_pkey_gencb>, cbarg=0x75eee0) at crypto/evp/keymgmt_meth.c:466
+#2  0x00007fffcd76b5ff in evp_keymgmt_util_gen (target=0x57ad30, keymgmt=0x5a8060, genctx=0x5ce390, cb=0x7fffcd779313 <ossl_callback_to_pkey_gencb>, cbarg=0x75eee0) at crypto/evp/keymgmt_lib.c:519
+#3  0x00007fffcd779594 in EVP_PKEY_generate (ctx=0x75eee0, ppkey=0x7fffffffc198) at crypto/evp/pmeth_gn.c:163
+#4  0x00007fffcd779705 in EVP_PKEY_paramgen (ctx=0x75eee0, ppkey=0x7fffffffc198) at crypto/evp/pmeth_gn.c:206
+#5  0x00007fffce0355bb in pkey_blocking_gen (ptr=0x7fffffffc190) at ../../../../ext/openssl/ossl_pkey.c:358
+#6  0x00007ffff78d110b in rb_nogvl (func=0x7fffce03557e <pkey_blocking_gen>, data1=0x7fffffffc190, ubf=0x7fffce03555d <pkey_blocking_gen_stop>, data2=0x7fffffffc190, flags=0) at thread.c:1628
+#7  0x00007ffff78d11f1 in rb_thread_call_without_gvl (func=0x7fffce03557e <pkey_blocking_gen>, data1=0x7fffffffc190, ubf=0x7fffce03555d <pkey_blocking_gen_stop>, data2=0x7fffffffc190) at thread.c:1741
+#8  0x00007fffce0358a5 in pkey_generate (argc=2, argv=0x7fffe92ff048, self=140736647918400, genparam=1) at ../../../../ext/openssl/ossl_pkey.c:434
+#9  0x00007fffce035938 in ossl_pkey_s_generate_parameters (argc=2, argv=0x7fffe92ff048, self=140736647918400) at ../../../../ext/openssl/ossl_pkey.c:473
+#10 0x00007ffff791db1d in ractor_safe_call_cfunc_m1 (recv=140736647918400, argc=2, argv=0x7fffe92ff048, func=0x7fffce03590e <ossl_pkey_s_generate_parameters>) at vm_insnhelper.c:3711
+#11 0x00007ffff791e773 in vm_call_cfunc_with_frame_ (ec=0x40cbd0, reg_cfp=0x7fffe93fefa0, calling=0x7fffffffc650, argc=2, argv=0x7fffe92ff048, stack_bottom=0x7fffe92ff040) at vm_insnhelper.c:3902
+#12 0x00007ffff791ea3b in vm_call_cfunc_with_frame (ec=0x40cbd0, reg_cfp=0x7fffe93fefa0, calling=0x7fffffffc650) at vm_insnhelper.c:3948
+#13 0x00007ffff791eb64 in vm_call_cfunc_other (ec=0x40cbd0, reg_cfp=0x7fffe93fefa0, calling=0x7fffffffc650) at vm_insnhelper.c:3974
+#14 0x00007ffff791efa0 in vm_call_cfunc (ec=0x40cbd0, reg_cfp=0x7fffe93fefa0, calling=0x7fffffffc650) at vm_insnhelper.c:4056
+#15 0x00007ffff7921c4d in vm_call_method_each_type (ec=0x40cbd0, cfp=0x7fffe93fefa0, calling=0x7fffffffc650) at vm_insnhelper.c:4888
+#16 0x00007ffff7922716 in vm_call_method (ec=0x40cbd0, cfp=0x7fffe93fefa0, calling=0x7fffffffc650) at vm_insnhelper.c:5014
+#17 0x00007ffff7922914 in vm_call_general (ec=0x40cbd0, reg_cfp=0x7fffe93fefa0, calling=0x7fffffffc650) at vm_insnhelper.c:5058
+#18 0x00007ffff792531c in vm_sendish (ec=0x40cbd0, reg_cfp=0x7fffe93fefa0, cd=0x73aa80, block_handler=0, method_explorer=mexp_search_method) at vm_insnhelper.c:6124
+#19 0x00007ffff792d5c3 in vm_exec_core (ec=0x40cbd0) at insns.def:904
+#20 0x00007ffff7947575 in rb_vm_exec (ec=0x40cbd0) at vm.c:2798
+#21 0x00007ffff7948456 in rb_iseq_eval_main (iseq=0x7fffce09ffa8) at vm.c:3064
+#22 0x00007ffff77023ff in rb_ec_exec_node (ec=0x40cbd0, n=0x7fffce09ffa8) at eval.c:283
+#23 0x00007ffff7702567 in ruby_run_node (n=0x7fffce09ffa8) at eval.c:321
+#24 0x0000000000400519 in rb_main (argc=4, argv=0x7fffffffd858) at ./main.c:42
+#25 0x0000000000400576 in main (argc=4, argv=0x7fffffffd858) at ./main.c:62
+```
